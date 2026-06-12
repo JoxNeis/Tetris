@@ -1,17 +1,4 @@
-#include <Tetromino.h>
-
-#pragma region STRUCT
-
-typedef struct {
-    int shape[4][4];
-} Rotation;
-
-typedef struct {
-    Rotation rotations[4];
-    int color;
-} Tetromino;
-
-#pragma endregion
+#include "Tetromino.h"
 
 #pragma region I
 // I piece (Cyan)
