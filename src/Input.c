@@ -1,18 +1,46 @@
 #include "Input.h"
+#include <stdio.h>
+
+#ifdef _WIN32
 #include <conio.h>
 #include <windows.h>
+#endif
 
 void input_init(void) {
-    /* Hide the cursor for cleaner rendering */
+    #ifdef _WIN32
+        input_init_win32();
+    #else
+        input_init_unknown();
+    #endif
+}
+
+void input_cleanup(void) {
+    #ifdef _WIN32
+        input_cleanup_win32();
+    #else
+        input_init_cleanup();
+    #endif
+}
+
+InputKey input_poll(void) {
+    #ifdef _WIN32
+        return input_poll_win32();
+    #else
+        return input_poll_unknown();
+    #endif
+}
+
+#pragma region WIN32
+static input_init_win32(void){
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_CURSOR_INFO cursorInfo;
     GetConsoleCursorInfo(hConsole, &cursorInfo);
     cursorInfo.bVisible = FALSE;
     SetConsoleCursorInfo(hConsole, &cursorInfo);
+
 }
 
-void input_cleanup(void) {
-    /* Restore cursor visibility on exit */
+static input_cleanup_win32(void){
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_CURSOR_INFO cursorInfo;
     GetConsoleCursorInfo(hConsole, &cursorInfo);
@@ -20,34 +48,36 @@ void input_cleanup(void) {
     SetConsoleCursorInfo(hConsole, &cursorInfo);
 }
 
-InputKey input_poll(void) {
-    if (!_kbhit()) return KEY_NONE;
-
+static InputKey input_poll_win32(void){
+    if (!_kbhit()) {
+        return KEY_NONE;
+    }
+    
     int ch = _getch();
-
-    /* Arrow keys return 0 or 224 as first byte, then a code */
     if (ch == 0 || ch == 224) {
         int ch2 = _getch();
         switch (ch2) {
-            case 72: return KEY_UP;    /* up arrow    */
-            case 80: return KEY_DOWN;  /* down arrow  */
-            case 75: return KEY_LEFT;  /* left arrow  */
-            case 77: return KEY_RIGHT; /* right arrow */
+            case 72: return KEY_UP;
+            case 80: return KEY_DOWN;
+            case 75: return KEY_LEFT;
+            case 77: return KEY_RIGHT;
+            default: return KEY_NONE;
         }
-        return KEY_NONE;
     }
-
     switch (ch) {
-        case '\r':
-        case '\n':
-            return KEY_ENTER;
+        case 27:
+            return KEY_QUIT;
 
         case 'q':
         case 'Q':
-            return KEY_QUIT;
+            return KEY_HOLD;
 
         case ' ':
             return KEY_SPACE;
+
+        case '\r':
+        case '\n':
+            return KEY_ENTER;
 
         case 'a':
         case 'A':
@@ -69,3 +99,20 @@ InputKey input_poll(void) {
             return KEY_NONE;
     }
 }
+#pragma endregion
+
+#pragma region UNKNOWN OS
+static void input_init_unknown(void){
+    printf("\033[?25l");
+    fflush(stdout);
+}
+
+static void input_cleanup_unknown(void){
+    printf("\033[?25h");
+    fflush(stdout);
+}
+
+static InputKey input_poll_unknown(void){
+    return KEY_NONE;
+}
+#pragma endregion

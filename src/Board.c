@@ -7,7 +7,7 @@ void board_init(Board *b) {
 
 int board_is_cell_set(const Board *b, int row, int col) {
     if (row < 0 || row >= BOARD_HEIGHT || col < 0 || col >= BOARD_WIDTH)
-        return 1; /* treat out-of-bounds as solid wall */
+        return 1;
     return b->cells[row][col] != 0;
 }
 
@@ -18,21 +18,18 @@ void board_set_cell(Board *b, int row, int col, int color) {
 
 int board_clear_full_lines(Board *b) {
     int cleared = 0;
-
     for (int row = BOARD_HEIGHT - 1; row >= 0; row--) {
         int full = 1;
         for (int col = 0; col < BOARD_WIDTH; col++) {
             if (b->cells[row][col] == 0) { full = 0; break; }
         }
         if (!full) continue;
-
-        /* Shift every row above down by one */
         for (int r = row; r > 0; r--)
             memcpy(b->cells[r], b->cells[r - 1], sizeof(b->cells[r]));
         memset(b->cells[0], 0, sizeof(b->cells[0]));
 
         cleared++;
-        row++; /* re-check the same row index after shift */
+        row++;
     }
     return cleared;
 }

@@ -6,7 +6,7 @@ void piece_spawn(Piece *p, TetrominoType type) {
     p->tetromino = get_tetromino_by_type(type);
     p->rotation  = 0;
     p->row       = 0;
-    p->col       = BOARD_WIDTH / 2 - 2; /* roughly center */
+    p->col       = BOARD_WIDTH / 2 - 2;
 }
 
 void piece_get_shape(const Piece *p, int out[4][4]) {
@@ -16,7 +16,6 @@ void piece_get_shape(const Piece *p, int out[4][4]) {
 int piece_is_valid(const Piece *p, const Board *b) {
     int shape[4][4];
     piece_get_shape(p, shape);
-
     for (int r = 0; r < 4; r++) {
         for (int c = 0; c < 4; c++) {
             if (!shape[r][c]) continue;
@@ -52,14 +51,13 @@ void piece_rotate(Piece *p, const Board *b) {
     int old = p->rotation;
     p->rotation = (p->rotation + 1) % 4;
     if (!piece_is_valid(p, b)) {
-        /* Simple wall-kick: try shifting left then right */
         p->col--;
         if (!piece_is_valid(p, b)) {
             p->col++;
             p->col++;
             if (!piece_is_valid(p, b)) {
                 p->col--;
-                p->rotation = old; /* revert */
+                p->rotation = old;
             }
         }
     }
