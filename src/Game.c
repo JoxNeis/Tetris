@@ -1,6 +1,6 @@
 #include "Game.h"
 #include "Input.h"
-#include "Renderer.h"
+#include "renderer/GameRenderer.h"
 
 #include <windows.h>
 #include <stdlib.h>
@@ -24,11 +24,48 @@ static int level_speed(int level) {
     return LEVEL_SPEED[level];
 }
 
-static void spawn_next(Game *g) {
-    g->current = g->next;
-    piece_spawn(&g->next, random_type());
-    if (!piece_is_valid(&g->current, &g->board))
+/**
+ * @brief Shifts the queue forward and spawns a new tail piece.
+ *        Sets game over if the freshly-promoted current piece overlaps existing blocks.
+ */
+static void advance_queue(Game *g) {
+    g->current = g->queue[0];
+    for (int i = 0; i < NEXT_QUEUE_SIZE - 1; i++) {
+        g->queue[i] = g->queue[i + 1];
+    }
+    piece_spawn(&g->queue[NEXT_QUEUE_SIZE - 1], random_type());
+    if (!piece_is_valid(&g->current, &g->board)) {
         g->state = GAME_OVER;
+    }
+    g->hold_used = 0;
+}
+
+/**
+ * @brief Swaps the current piece with the hold slot.
+ *        Only one swap is allowed per piece placement (hold_used flag).
+ */
+static void do_hold(Game *g) {
+    if (g->hold_used) return;
+
+    if (!g->hold_active) {
+        g->hold        = g->current;
+        g->hold_active = 1;
+        advance_queue(g);
+    } else {
+        Piece tmp  = g->hold;
+        g->hold    = g->current;
+        piece_spawn(&tmp, tmp.type);
+        g->current = tmp;
+        if (!piece_is_valid(&g->current, &g->board)) {
+            g->state = GAME_OVER;
+            return;
+        }
+    }
+    g->hold.rotation = 0;
+    g->hold.row      = 0;
+    g->hold.col      = 0;
+
+    g->hold_used = 1;
 }
 
 void game_init(Game *g) {
@@ -40,51 +77,68 @@ void game_init(Game *g) {
     g->level         = 1;
     g->lines_cleared = 0;
     g->tick_ms       = level_speed(1);
-
-    piece_spawn(&g->next, random_type());
-    spawn_next(g);
+    g->hold_active   = 0;
+    g->hold_used     = 0;
+    for (int i = 0; i < NEXT_QUEUE_SIZE; i++) {
+        piece_spawn(&g->queue[i], random_type());
+    }
+    advance_queue(g);
 }
 
 void game_run(Game *g) {
-    input_init();
-    renderer_clear();
+    renderer_init();
 
-    ULONGLONG last = GetTickCount64();
-    long accumulated_ms = 0;
+    ULONGLONG last           = GetTickCount64();
+    long      accumulated_ms = 0;
 
     while (g->state == GAME_RUNNING) {
-        /* ---- timing ---- */
-        ULONGLONG now = GetTickCount64();
-        long elapsed_ms = (long)(now - last);
-        last = now;
-        accumulated_ms += elapsed_ms;
-
-        /* ---- input ---- */
+        ULONGLONG now        = GetTickCount64();
+        long      elapsed_ms = (long)(now - last);
+        last                 = now;
+        accumulated_ms      += elapsed_ms;
         InputKey key = input_poll();
         switch (key) {
-            case KEY_QUIT:  g->state = GAME_OVER; break;
-            case KEY_LEFT:  piece_move_left (&g->current, &g->board); break;
-            case KEY_RIGHT: piece_move_right(&g->current, &g->board); break;
+            case KEY_QUIT:
+                g->state = GAME_OVER;
+                break;
+
+            case KEY_LEFT:
+                piece_move_left(&g->current, &g->board);
+                break;
+
+            case KEY_RIGHT:
+                piece_move_right(&g->current, &g->board);
+                break;
+
             case KEY_DOWN:
                 if (piece_move_down(&g->current, &g->board))
                     g->score += 1;
                 break;
-            case KEY_UP: piece_rotate(&g->current, &g->board); break;
+
+            case KEY_UP:
+                piece_rotate(&g->current, &g->board);
+                break;
+
             case KEY_SPACE: {
                 int dropped = 0;
                 while (piece_move_down(&g->current, &g->board)) dropped++;
-                g->score += dropped * 2;
-                accumulated_ms = g->tick_ms;
+                g->score       += dropped * 2;
+                accumulated_ms  = g->tick_ms;
                 break;
             }
-            default: break;
-        }
 
-        /* ---- gravity tick ---- */
+            case KEY_HOLD:
+                do_hold(g);
+                break;
+
+            default:
+                break;
+        }
         if (accumulated_ms >= g->tick_ms) {
             accumulated_ms = 0;
             if (!piece_move_down(&g->current, &g->board)) {
                 piece_lock(&g->current, &g->board);
+
                 int cleared = board_clear_full_lines(&g->board);
                 if (cleared > 0) {
                     g->score         += SCORE_TABLE[cleared] * g->level;
@@ -92,19 +146,26 @@ void game_run(Game *g) {
                     g->level          = g->lines_cleared / 10 + 1;
                     g->tick_ms        = level_speed(g->level);
                 }
-                spawn_next(g);
+
+                advance_queue(g);
             }
         }
+        const Piece *hold_ptr = g->hold_active ? &g->hold : NULL;
+        renderer_draw(
+            &g->board,
+            &g->current,
+            hold_ptr,
+            g->queue,
+            NEXT_QUEUE_SIZE,
+            g->score,
+            g->level,
+            g->lines_cleared
+        );
 
-        /* ---- render ---- */
-        renderer_draw(&g->board, &g->current,
-                      g->score, g->level, g->lines_cleared);
-
-        Sleep(16); /* ~60 fps */
+        Sleep(16);
     }
 
-    input_cleanup();
-    renderer_game_over(g->score);
+    renderer_game_over((unsigned long long)g->score);
 
     int c;
     while ((c = getchar()) != '\n' && c != EOF);

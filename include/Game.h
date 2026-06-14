@@ -4,6 +4,8 @@
 #include "Board.h"
 #include "Piece.h"
 
+#define NEXT_QUEUE_SIZE 5
+
 typedef enum {
     GAME_RUNNING,
     GAME_OVER
@@ -12,15 +14,18 @@ typedef enum {
 typedef struct {
     Board     board;
     Piece     current;
-    Piece     next;
+    Piece     queue[NEXT_QUEUE_SIZE]; /* visible upcoming pieces             */
+    Piece     hold;                   /* held piece (type == -1 if empty)   */
+    int       hold_active;            /* 1 if hold slot is occupied         */
+    int       hold_used;              /* 1 if hold was already used this turn*/
     GameState state;
     int       score;
     int       level;
     int       lines_cleared;
-    int       tick_ms;     /* milliseconds between gravity ticks */
+    int       tick_ms;                /* milliseconds between gravity ticks */
 } Game;
 
-void game_init (Game *g);
-void game_run  (Game *g);   /* blocking main loop */
+void game_init(Game *g);
+void game_run (Game *g);  /* blocking main loop */
 
 #endif

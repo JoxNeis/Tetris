@@ -11,6 +11,5 @@ typedef struct {
 void  board_init(Board *b);
 int   board_is_cell_set(const Board *b, int row, int col);
 void  board_set_cell(Board *b, int row, int col, int color);
-int   board_clear_full_lines(Board *b);  /* returns number of lines cleared */
-
+int   board_clear_full_lines(Board *b);
 #endif
